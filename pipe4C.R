@@ -38,7 +38,10 @@ option_list = list(
   make_option(c("-c", "--confFile"), type="character", default="conf.yml", 
               help="path to configuration file [default %default]", metavar="/path/to/output_folder/"),
   
+
   
+  make_option(c("-d", "--mismatchMax"), type="integer", default=NULL,
+              help="Maximum number of mismatches allowed with primer sequence during demultiplexing.",metavar="number"),
   
   make_option(c("-q", "--qualityCutoff"), type="integer", default=NULL,
               help="Q-score. Trim 3-end of all sequences using a sliding window as soon as 2 of 5 nucleotides has quality encoding less than the Q-score.",metavar="number"),
@@ -134,6 +137,9 @@ if (!is.null(argsL$wSize)){
 }
 if (!is.null(argsL$nTop)){
   configOpt$nTop<-argsL$nTop
+}
+if (!is.null(argsL$mismatchMax)){
+  configF$mismatchMax<-argsL$mismatchMax
 }
 
 
