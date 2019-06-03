@@ -139,7 +139,7 @@ if (!is.null(argsL$nTop)){
   configOpt$nTop<-argsL$nTop
 }
 if (!is.null(argsL$mismatchMax)){
-  configF$mismatchMax<-argsL$mismatchMax
+  configOpt$mismatchMax<-argsL$mismatchMax
 }
 
 
@@ -186,20 +186,6 @@ Run.4Cpipeline(
                ,FASTQ.F = argsL$fqFolder
                ,OUTPUT.F = argsL$outFolder
                ,configuration=configOpt
-               # ,cutoff = argsL$qualityCutoff
-               # ,trim.length = argsL$trimLength
-               # ,min.amount.reads=argsL$minAmountReads
-               # ,reads.quality=argsL$readsQuality
-               # ,map.unique = argsL$mapUnique
-               # ,nThreads = argsL$cores
-               # ,wSize = argsL$wSize
-               # ,nTop = argsL$nTop
-               # ,nonBlind = argsL$nonBlind
-               # ,make.wig = argsL$wig
-               # ,make.cisplot = argsL$plot
-               # ,make.gwplot = argsL$genomePlot
-               # ,tsv = argsL$tsv
-               # ,bins=argsL$bins
               )
 
 
