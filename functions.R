@@ -24,6 +24,7 @@ createConfig <- function( confFile=argsL$confFile ){
   genomePlot <- configF$genomePlot
   tsv <- configF$tsv
   bins <- configF$bins
+  mmMax <- configF$mismatchMax
   
   
   
@@ -74,6 +75,7 @@ createConfig <- function( confFile=argsL$confFile ){
                 ,genomePlot=genomePlot
                 ,tsv=tsv
                 ,bins=bins
+                ,mmMax=mmMax
                  
                 ) )
 }
@@ -122,81 +124,106 @@ Read.VPinfo<-function(VPinfo.file){
   return( data.frame( expname=expname, spacer=spacer, primer=primer, firstenzyme=firstenzyme, secondenzyme=secondenzyme, genome=genome, vpchr=vpchr, vppos=vppos, analysis=analysis, fastq=fastq, stringsAsFactors=FALSE ) )         
 }
 
-demux.FASTQ <- function( VPinfo, FASTQ.F, FASTQ.demux.F, demux.log.path, overwrite=FALSE ) {
+demux.FASTQ <- function(VPinfo, FASTQ.F, FASTQ.demux.F, demux.log.path, overwrite = FALSE, mmMax = 0) {
   # reading functions
-  if( !require( "ShortRead", character.only = TRUE ) ) stop( "Package not found: ShortRead" )
+  if (!require("ShortRead", character.only = TRUE)) stop("Package not found: ShortRead")
   
-  #Demultiplex FastQ files:
-  # 1. This will remove weird charactes from VPinfo name and primer info.
-  # 2. Exclude experiments that have non-unique names
-  # 3. Demultiplex each Fastq file and save it as a new Fastq file which can be uploaded to GEO.
+  # Demultiplex FastQ files: 
+  # 1.  This will remove weird charactes from VPinfo name and primer info.
+  # 2.  Exclude experiments that have non-unique names
+  # 3.  Demultiplex each Fastq file and save it as a new Fastq file which can be uploaded to GEO.
+  #     If a spacer sequence is used with random nucleotids before the primer, the spacer option should be set.
   
-  # If a spacer sequence is used with random nucleotids before the primer, the spacer option should be set.
   
   #Demultiplex per FASTQ file
-  file.fastq<-sort(unique(VPinfo$fastq))
+  
+  file.fastq <- sort(unique(VPinfo$fastq))
   for (i in 1:length(file.fastq)) {
-    VPinfo.fastq <- VPinfo[VPinfo$fastq == file.fastq[i],]
-    #Remove weird characters from VPinfo file
+    VPinfo.fastq <- VPinfo[VPinfo$fastq == file.fastq[i], ]
+    
+    # Remove weird characters from VPinfo file
     exp.name.all <- as.character(VPinfo$expname)
     exp.name <- as.character(VPinfo.fastq$expname)
-    primer <-  toupper(as.character(VPinfo.fastq$primer))
-    spacer<- as.numeric(VPinfo.fastq$spacer)
-    #Remove experiments with duplicated names
+    primer <- toupper(as.character(VPinfo.fastq$primer))
+    spacer <- as.numeric(VPinfo.fastq$spacer)
+    
+    # Remove experiments with duplicated names
     exp.name.unique <- NULL
     primer.unique <- NULL
     spacer.unique <- NULL
     for (a in 1:length(exp.name)) {
       if (exp.name[a] %in% exp.name.all[duplicated(exp.name.all)]) {
-        error.msg <-
-          paste("      ### ERROR: Experiment name not unique for ", exp.name[a] )
+        error.msg <- paste("      ### ERROR: Experiment name not unique for ", exp.name[a])
         message(error.msg)
-        write(error.msg, demux.log.path, append=TRUE)
-      } else{
+        write(error.msg, demux.log.path, append = TRUE)
+      } else {
         exp.name.unique <- c(exp.name.unique, exp.name[a])
         primer.unique <- c(primer.unique, primer[a])
         spacer.unique <- c(spacer.unique, spacer[a])
       }
     }
-    
-    fq.df<-data.frame()
+    fq.df <- data.frame()
     for (b in 1:length(exp.name.unique)) {
-      outfile<-paste0(FASTQ.demux.F, exp.name.unique[b], ".fastq.gz")
-      if(any(file.exists(outfile))) {
-        if(overwrite==TRUE) {
+      outfile <- paste0(FASTQ.demux.F, exp.name.unique[b], ".fastq.gz")
+      if (any(file.exists(outfile))) {
+        if (overwrite == TRUE) {
           unlink(outfile)
-          error.msg<-paste("      ### WARNING: File", outfile , "exists and will be overwritten.")
+          error.msg <- paste("      ### WARNING: File", outfile, "exists and will be overwritten.")
           write(error.msg, demux.log.path, append = TRUE)
           message(error.msg)
-          newrow<-data.frame(exp.name=exp.name.unique[b],primer=primer.unique[b],spacer=spacer.unique[b])
-          fq.df<-rbind(fq.df,newrow)
+          newrow <- data.frame(exp.name = exp.name.unique[b], primer = primer.unique[b], spacer = spacer.unique[b])
+          fq.df <- rbind(fq.df, newrow)
         } else {
-          message(paste("      ### WARNING: File", outfile , "exists. continuing with exisiting file."))
+          message(paste("      ### WARNING: File", outfile, "exists. continuing with exisiting file."))
         }
       } else {
-        newrow<-data.frame(exp.name=exp.name.unique[b],primer=primer.unique[b],spacer=spacer.unique[b])
-        fq.df<-rbind(fq.df,newrow)
+        newrow <- data.frame(exp.name = exp.name.unique[b], primer = primer.unique[b], spacer = spacer.unique[b])
+        fq.df <- rbind(fq.df, newrow)
       }
     }
     
-    ## Read FastQ
-    if (nrow(fq.df) > 0){
+    #Check whether primer can be seperated
+    
+    primers.mm<-DNAStringSet(fq.df$primer)
+    names(primers.mm)<-fq.df$exp.name
+    
+    for (c in seq_along(primers.mm)){
+      primers.mm2<-primers.mm
+      primers.mm2[c]<-NULL
+      dist <- srdistance(primers.mm2,primers.mm[c])[[1]]
+      if (min(dist)<= mmMax){
+        error.msg <- paste("      ### WARNING: primer sequence not unique for", fq.df$exp.name[c], "with", mmMax, "mismatches allowed.")
+        message(error.msg)
+        # write(error.msg, demux.log.path, append = TRUE)
+        error.msg2 <- paste("      ### WARNING: primer overlaps with primer ", names(primers.mm2[dist<=mmMax]),"\n")
+        message(error.msg2)
+        # write(error.msg2, demux.log.path, append = TRUE)
+      }
+    }
+    
+    
+    # Read FastQ
+    if (nrow(fq.df) > 0) {
       message(paste("      >>> Reading Fastq: ", file.fastq[i], " <<<"))
       # then we stream the fastq files at 1,000,000 reads each time ( default )
-      stream <- FastqStreamer((paste0(FASTQ.F,"/", file.fastq[i])))
-      message( paste0('         ### ', fq.df$exp.name, ' check for primer sequence ', fq.df$primer, ' spacer:',fq.df$spacer,'\n' ) )
-      
-      while(length(fq <- yield(stream))) {
+      stream <- FastqStreamer((paste0(FASTQ.F, "/", file.fastq[i])))
+      message(paste0("         ### ", fq.df$exp.name, " check for primer sequence ", fq.df$primer, 
+                     " spacer:", fq.df$spacer, " max mismatch:", mmMax, "\n"))
+      while (length(fq <- yield(stream))) {
         for (i in 1:nrow(fq.df)) {
-          primer.seq <-as.character(fq.df$primer[i])
-          spacer<-as.numeric(fq.df$spacer[i])
-          demultiplex.primer = srFilter(function(x) {
-            substr(sread(x), spacer+1, spacer+nchar(primer.seq)) == primer.seq
+          primer.seq <- as.character(fq.df$primer[i])
+          spacer <- as.numeric(fq.df$spacer[i])
+          if (mmMax == 0) {
+            demultiplex.primer = srFilter(function(x) {
+              substr(sread(x), spacer + 1, spacer + nchar(primer.seq)) == primer.seq
+            }, name = "demultiplex.primer")
+            demux.fq <- fq[demultiplex.primer(fq)]
+          } else {
+            shortreads <- narrow(sread(fq), start = spacer + 1, end = spacer + nchar(primer.seq))
+            dist <- srdistance(shortreads, primer.seq)[[1]]
+            demux.fq <- fq[dist <= mmMax]
           }
-          , name = "demultiplex.primer"
-          )
-          demux.fq <- fq[demultiplex.primer(fq)] 
-          writeFastq(demux.fq, paste0(FASTQ.demux.F, fq.df$exp.name[i], ".fastq.gz"), mode="a")
+          writeFastq(demux.fq, paste0(FASTQ.demux.F, fq.df$exp.name[i], ".fastq.gz"), mode = "a")
         }
       }
       close(stream)
@@ -897,7 +924,7 @@ Run.4Cpipeline <- function( VPinfo.file, FASTQ.F, OUTPUT.F, configuration){
   make.gwplot = configuration$genomePlot
   tsv = configuration$tsv
   bins=configuration$bins
-
+  mmMax=configuration$mmMax
   
   
   # create folders
@@ -959,15 +986,25 @@ Run.4Cpipeline <- function( VPinfo.file, FASTQ.F, OUTPUT.F, configuration){
   # Save Run parameters to logfile
 
   run.par <- data.frame(
-               param=c( "pipeline.version", "baseFolder", "VPinfo.file", "FASTQ.F", "OUTPUT.F", "cutoff", "trim.length", "map.unique", "wSize", "nTop", "make.wig", "make.cisplot", "make.gwplot", "nThreads" )
-              ,value=c( configuration$pipeline.version, configuration$baseFolder, VPinfo.file, FASTQ.F, OUTPUT.F, cutoff, trim.length, map.unique, wSize, nTop, make.wig, make.cisplot, make.gwplot, nThreads )
+               param=c( "pipeline.version", "baseFolder", "VPinfo.file", "FASTQ.F", "OUTPUT.F", "cutoff", "trim.length"
+                        , "reads.quality", "map.unique", "wSize", "nTop", "make.wig", "make.cisplot", "make.gwplot", "nThreads"
+                        , "normFactor", "nonBlind", "tsv","bins", "mmMax" )
+              ,value=c( configuration$pipeline.version, configuration$baseFolder, VPinfo.file, FASTQ.F, OUTPUT.F, cutoff, trim.length
+                        ,reads.quality, map.unique, wSize, nTop, make.wig, make.cisplot, make.gwplot, nThreads,normFactor
+                        ,nonBlind,tsv,bins,mmMax)
              )
 
+  
+ 
   write.table( run.par, log.path, quote=FALSE, col.names=FALSE, row.names=FALSE, append=TRUE )                    
 
+  
+  
+  
+  
   # Demultiplex all fastq files and write in FASTQ folder in OUTPUT.F
   message("\n------ Demultiplexing Fastq files based on VPinfo file")
-  demux.FASTQ( VPinfo=VPinfo, FASTQ.F=FASTQ.F, FASTQ.demux.F=FASTQ.demux.F, demux.log.path=demux.log.path)
+  demux.FASTQ( VPinfo=VPinfo, FASTQ.F=FASTQ.F, FASTQ.demux.F=FASTQ.demux.F, demux.log.path=demux.log.path, mmMax)
 
   #4C-seq analysis
 
