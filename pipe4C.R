@@ -139,7 +139,7 @@ if (!is.null(argsL$nTop)){
   configOpt$nTop<-argsL$nTop
 }
 if (!is.null(argsL$mismatchMax)){
-  configOpt$mismatchMax<-argsL$mismatchMax
+  configOpt$mmMax<-argsL$mismatchMax
 }
 
 
