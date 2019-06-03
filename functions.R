@@ -136,6 +136,7 @@ demux.FASTQ <- function(VPinfo, FASTQ.F, FASTQ.demux.F, demux.log.path, overwrit
   
   
   #Demultiplex per FASTQ file
+
   
   file.fastq <- sort(unique(VPinfo$fastq))
   for (i in 1:length(file.fastq)) {
@@ -182,26 +183,27 @@ demux.FASTQ <- function(VPinfo, FASTQ.F, FASTQ.demux.F, demux.log.path, overwrit
       }
     }
     
-    #Check whether primer can be seperated
+    #Check whether primers hae enough distance with maximum allowed mismatches.
+    message("Check whether primer can be seperated" )
     
     primers.mm<-DNAStringSet(fq.df$primer)
     names(primers.mm)<-fq.df$exp.name
-    
-    for (c in seq_along(primers.mm)){
-      primers.mm2<-primers.mm
-      primers.mm2[c]<-NULL
+
+        for (c in seq_along(primers.mm)){
+      primers.mm2<-primers.mm[-c]
       dist <- srdistance(primers.mm2,primers.mm[c])[[1]]
+      
       if (min(dist)<= mmMax){
         error.msg <- paste("      ### WARNING: primer sequence not unique for", fq.df$exp.name[c], "with", mmMax, "mismatches allowed.")
         message(error.msg)
-        # write(error.msg, demux.log.path, append = TRUE)
+        write(error.msg, demux.log.path, append = TRUE)
         error.msg2 <- paste("      ### WARNING: primer overlaps with primer ", names(primers.mm2[dist<=mmMax]),"\n")
         message(error.msg2)
-        # write(error.msg2, demux.log.path, append = TRUE)
+        write(error.msg2, demux.log.path, append = TRUE)
       }
     }
     
-    
+  
     # Read FastQ
     if (nrow(fq.df) > 0) {
       message(paste("      >>> Reading Fastq: ", file.fastq[i], " <<<"))
@@ -925,7 +927,7 @@ Run.4Cpipeline <- function( VPinfo.file, FASTQ.F, OUTPUT.F, configuration){
   tsv = configuration$tsv
   bins=configuration$bins
   mmMax=configuration$mmMax
-  
+  normFactor=configuration$normFactor
   
   # create folders
 
@@ -1004,8 +1006,8 @@ Run.4Cpipeline <- function( VPinfo.file, FASTQ.F, OUTPUT.F, configuration){
   
   # Demultiplex all fastq files and write in FASTQ folder in OUTPUT.F
   message("\n------ Demultiplexing Fastq files based on VPinfo file")
-  demux.FASTQ( VPinfo=VPinfo, FASTQ.F=FASTQ.F, FASTQ.demux.F=FASTQ.demux.F, demux.log.path=demux.log.path, mmMax)
-
+  demux.FASTQ( VPinfo=VPinfo, FASTQ.F=FASTQ.F, FASTQ.demux.F=FASTQ.demux.F, demux.log.path=demux.log.path, mmMax = mmMax)
+  
   #4C-seq analysis
 
   exp.name <- as.character( VPinfo$expname )
