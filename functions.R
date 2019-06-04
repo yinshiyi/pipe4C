@@ -184,6 +184,13 @@ demux.FASTQ <- function(VPinfo, FASTQ.F, FASTQ.demux.F, demux.log.path, overwrit
     }
     
     #Check whether primers hae enough distance with maximum allowed mismatches.
+    #
+    #
+    #https://www.rdocumentation.org/packages/DescTools/versions/0.99.19/topics/StrDist
+    #The function computes the Hamming and the Levenshtein (edit) distance of two given strings (sequences).
+    #The Hamming distance between two vectors is the number mismatches between corresponding entries.
+    #In case of the Hamming distance the two strings must have the same length.
+    #
     message("Check whether primer can be seperated" )
     
     primers.mm<-DNAStringSet(fq.df$primer)
@@ -191,7 +198,12 @@ demux.FASTQ <- function(VPinfo, FASTQ.F, FASTQ.demux.F, demux.log.path, overwrit
 
         for (c in seq_along(primers.mm)){
       primers.mm2<-primers.mm[-c]
-      dist <- srdistance(primers.mm2,primers.mm[c])[[1]]
+      #dist <- srdistance(primers.mm2,primers.mm[c])[[1]]
+      dist <- srdistance(primers.mm2,primers.mm[c],method = "Hamming")[[1]]
+      
+      #srdistanceFilter()
+      #http://manuals.bioinformatics.ucr.edu/home/ht-seq
+      
       
       if (min(dist)<= mmMax){
         error.msg <- paste("      ### WARNING: primer sequence not unique for", fq.df$exp.name[c], "with", mmMax, "mismatches allowed.")
@@ -222,7 +234,7 @@ demux.FASTQ <- function(VPinfo, FASTQ.F, FASTQ.demux.F, demux.log.path, overwrit
             demux.fq <- fq[demultiplex.primer(fq)]
           } else {
             shortreads <- narrow(sread(fq), start = spacer + 1, end = spacer + nchar(primer.seq))
-            dist <- srdistance(shortreads, primer.seq)[[1]]
+            dist <- srdistance(shortreads, primer.seq, method = "Hamming")[[1]]
             demux.fq <- fq[dist <= mmMax]
           }
           writeFastq(demux.fq, paste0(FASTQ.demux.F, fq.df$exp.name[i], ".fastq.gz"), mode = "a")
@@ -279,13 +291,35 @@ trim.FASTQ <- function( exp.name, firstcutter, secondcutter, file.fastq, trim.F,
     }
     
     #Find the most occuring position of the firstcutter
-    motif.1st.pos <- as.numeric( names( sort( table( regexpr( firstcutter, sequences ) ), decreasing=TRUE ) )[1] )
+    #motif.1st.pos <- as.numeric( names( sort( table( regexpr( firstcutter, sequences ) ), decreasing=TRUE ) )[1] )
+    
+    
+      motifPos<-sort( table( regexpr( firstcutter, sequences ) ), decreasing=TRUE)[1]
+      motif.1st.pos<-as.numeric( names(motifPos))
+      motifPos.perc<-motif.1st.pos/nReads*100
+      
+      if ( motifPos.perc < 90) {
+        error.msg <- paste0( "         ### WARNING: Most occuring position RE1 found in only", motifPos.perc, "% of the reads." )
+        write( error.msg, log.path, append=TRUE )
+        message( error.msg )
+      }
+    
     motif.1st.pos.2nd <- FALSE
     if ( motif.1st.pos > 0 ){
       #Check whether firstcutter motif is within the first 4 nts (as part of a barcode). If so take 2nd firstcutter pos.
       if ( motif.1st.pos < 5 ){
         motif.1st.pos.2nd <- TRUE
         motif.1st.pos <- as.numeric( names( sort( table( gregexpr( firstcutter, sequences )[[1]][2] ), decreasing=TRUE ) )[1] )
+        
+        motifPos2<-sort( table( gregexpr( firstcutter, sequences )[[1]][2] ), decreasing=TRUE )[1]
+        motif.1st.pos<-as.numeric( names(motifPos2))
+        motifPos2.perc<-motifPos2/nReads*100
+        if ( motifPos2.perc < 90) {
+          error.msg <- paste0( "         ### WARNING: Most occuring position RE1 found in only", motifPos2.perc, "% of the reads." )
+          write( error.msg, log.path, append=TRUE )
+          message( error.msg )
+        }
+        
       }
       if ( trim.length > 0 ){
         sequences <- substr( sequences, 1, ( trim.length-1+motif.1st.pos ) )
