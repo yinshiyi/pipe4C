@@ -191,6 +191,8 @@ demux.FASTQ <- function(VPinfo, FASTQ.F, FASTQ.demux.F, demux.log.path, overwrit
     #The Hamming distance between two vectors is the number mismatches between corresponding entries.
     #In case of the Hamming distance the two strings must have the same length.
     #
+    
+    if (nrow(fq.df)>1){
     message("Check whether primer can be seperated" )
     
     primers.mm<-DNAStringSet(fq.df$primer)
@@ -214,7 +216,7 @@ demux.FASTQ <- function(VPinfo, FASTQ.F, FASTQ.demux.F, demux.log.path, overwrit
         write(error.msg2, demux.log.path, append = TRUE)
       }
     }
-    
+    }
   
     # Read FastQ
     if (nrow(fq.df) > 0) {
@@ -276,9 +278,23 @@ trim.FASTQ <- function( exp.name, firstcutter, secondcutter, file.fastq, trim.F,
     } #close cutoff
     
     #Trim sequences 
-    read.length <- as.numeric(names(which.max(table(width(demux.fq)))))
+    #read.length <- as.numeric(names(which.max(table(width(demux.fq)))))
+    
     sequences <- sread( demux.fq )
     nReads <- length( sequences )
+    
+    read.length.table <- sort(table(width(demux.fq)), decreasing=TRUE)[1]
+    read.length<-as.numeric(names(read.length.table))
+    read.length.perc<-round(as.numeric(read.length.table/nReads*100),2)
+    
+    if ( read.length.perc < 60) {
+      error.msg <- paste0( "         ### WARNING: Max read length in only ", read.length.perc, "% of the reads." )
+      write( error.msg, log.path, append=TRUE )
+      message( error.msg )
+    }
+    
+    
+  
     
     if ( nReads < min.amount.reads) {
       error.msg <- paste0( "         ### ERROR: Less reads in FASTQ than set as minimum. Reads: ", nReads )
@@ -296,31 +312,34 @@ trim.FASTQ <- function( exp.name, firstcutter, secondcutter, file.fastq, trim.F,
     
       motifPos<-sort( table( regexpr( firstcutter, sequences ) ), decreasing=TRUE)[1]
       motif.1st.pos<-as.numeric( names(motifPos))
-      motifPos.perc<-motif.1st.pos/nReads*100
+      motifPos.perc<-round(as.numeric(motifPos/nReads*100),2)
       
-      if ( motifPos.perc < 90) {
-        error.msg <- paste0( "         ### WARNING: Most occuring position RE1 found in only", motifPos.perc, "% of the reads." )
-        write( error.msg, log.path, append=TRUE )
-        message( error.msg )
-      }
+     
     
     motif.1st.pos.2nd <- FALSE
     if ( motif.1st.pos > 0 ){
       #Check whether firstcutter motif is within the first 4 nts (as part of a barcode). If so take 2nd firstcutter pos.
       if ( motif.1st.pos < 5 ){
         motif.1st.pos.2nd <- TRUE
-        motif.1st.pos <- as.numeric( names( sort( table( gregexpr( firstcutter, sequences )[[1]][2] ), decreasing=TRUE ) )[1] )
+        #motif.1st.pos <- as.numeric( names( sort( table( gregexpr( firstcutter, sequences )[[1]][2] ), decreasing=TRUE ) )[1] )
         
-        motifPos2<-sort( table( gregexpr( firstcutter, sequences )[[1]][2] ), decreasing=TRUE )[1]
-        motif.1st.pos<-as.numeric( names(motifPos2))
-        motifPos2.perc<-motifPos2/nReads*100
-        if ( motifPos2.perc < 90) {
-          error.msg <- paste0( "         ### WARNING: Most occuring position RE1 found in only", motifPos2.perc, "% of the reads." )
-          write( error.msg, log.path, append=TRUE )
-          message( error.msg )
-        }
+        motifPos<-sort( table( gregexpr( firstcutter, sequences )[[1]][2] ), decreasing=TRUE )[1]
+        motif.1st.pos<-as.numeric( names(motifPos))
+        motifPos.perc<-round(as.numeric(motifPos/nReads*100),2)
+       
         
       }
+      
+      if ( motifPos.perc < 90) {
+        error.msg <- paste0( "         ### WARNING: Most occuring position RE1 found in only", motifPos.perc, "% of the reads." )
+        write( error.msg, log.path, append=TRUE )
+        message( error.msg )
+      }
+      
+      
+      
+      
+      
       if ( trim.length > 0 ){
         sequences <- substr( sequences, 1, ( trim.length-1+motif.1st.pos ) )
         read.length <- as.numeric(names(which.max(table(width(sequences)))))
@@ -360,8 +379,8 @@ trim.FASTQ <- function( exp.name, firstcutter, secondcutter, file.fastq, trim.F,
     write( keep, txt.tmp )
     rm( sequences, demux.fq )
     captureLen <- read.length - motif.1st.pos + 1
-    saveRDS( list( captureLen=captureLen, nReads=nReads ), file=info.file )
-    return( list( captureLen=captureLen, nReads=nReads ) )
+    saveRDS( list( captureLen=captureLen, nReads=nReads, motifPosperc=motifPos.perc, readlenperc=read.length.perc  ), file=info.file )
+    return( list( captureLen=captureLen, nReads=nReads, motifPosperc=motifPos.perc, readlenperc=read.length.perc ) )
   }
 }
 
@@ -824,8 +843,10 @@ export.report <- function( RDS.F, OUTPUT.F ){
   write.table( report.df, file=paste0( OUTPUT.F,"/report.txt"), row.names=FALSE, quote=FALSE )
 }
 
-createReport <- function( allReads, mapReads, demuxReads, chromosome, vpPos, normFactor=1e6, wSize, nTop ){
+createReport <- function( allReads, mapReads, demuxReads, chromosome, vpPos, normFactor=1e6, wSize, nTop
+                          , motifPosperc, readlenperc){
 
+  
   nMapped <- length( mapReads )
   uniqueReads <- sum( allReads$reads )
   uniqueCaptures <- sum( allReads$reads>0 )
@@ -874,6 +895,8 @@ createReport <- function( allReads, mapReads, demuxReads, chromosome, vpPos, nor
     , cov100Kb=cov100Kb
     , capt1Mb=capt1Mb
     , cov1Mb=cov1Mb
+    , motifPosperc=motifPosperc
+    , readlenperc=readlenperc
     , stringsAsFactors=FALSE
   )
 
@@ -1131,7 +1154,10 @@ Run.4Cpipeline <- function( VPinfo.file, FASTQ.F, OUTPUT.F, configuration){
     }
     
     nReads <- trim.FASTQ$nReads
+    motifPosperc <-trim.FASTQ$motifPosperc
+    readlenperc <- trim.FASTQ$readlenperc
 
+    
     # 3. make BAM files
 
     message( "      >>> Alignment of reads to reference genome <<<" )
@@ -1178,7 +1204,19 @@ Run.4Cpipeline <- function( VPinfo.file, FASTQ.F, OUTPUT.F, configuration){
 
     
     message("      >>> Compute statistics and create report <<<")
-    reportAnalysis <- createReport( allReads=readsAln, mapReads=mappedReads, demuxReads=nReads, chromosome=CHR, vpPos=vppos[i], normFactor=configuration$normFactor, wSize=wSize, nTop=nTop )
+    reportAnalysis <- createReport( allReads=readsAln
+                                  , mapReads=mappedReads
+                                  , demuxReads=nReads
+                                  , chromosome=CHR
+                                  , vpPos=vppos[i]
+                                  , normFactor=configuration$normFactor
+                                  , wSize=wSize
+                                  , nTop=nTop
+                                  , motifPosPerc=motifPosperc
+                                  , readlenPerc=readlenperc
+    )
+    
+
 
     vpInfo <- data.frame(
         name=exp.name[i]
