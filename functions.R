@@ -880,6 +880,8 @@ createReport <- function( allReads, mapReads, demuxReads, chromosome, vpPos, nor
 
   report <- data.frame(
       nReads=demuxReads # total demux reads
+    , motifPosperc=motifPosperc
+    , readlenperc=readlenperc
     , nMapped=nMapped # Bowtie mapped read
     , nMappedCis=nMappedCis # Bowtie mapped reads in Cis
     , nMappedCisperc=nMappedCisperc # Bowtie mapped % reads in Cis
@@ -895,8 +897,6 @@ createReport <- function( allReads, mapReads, demuxReads, chromosome, vpPos, nor
     , cov100Kb=cov100Kb
     , capt1Mb=capt1Mb
     , cov1Mb=cov1Mb
-    , motifPosperc=motifPosperc
-    , readlenperc=readlenperc
     , stringsAsFactors=FALSE
   )
 
