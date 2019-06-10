@@ -342,7 +342,14 @@ trim.FASTQ <- function( exp.name, firstcutter, secondcutter, file.fastq, trim.F,
       
       if ( trim.length > 0 ){
         sequences <- substr( sequences, 1, ( trim.length-1+motif.1st.pos ) )
-        read.length <- as.numeric(names(which.max(table(width(sequences)))))
+        #read.length <- as.numeric(names(which.max(table(width(sequences)))))
+        
+        read.length.table <- sort(table(width(demux.fq)), decreasing=TRUE)[1]
+        read.length<-as.numeric(names(read.length.table))
+        read.length.perc<-round(as.numeric(read.length.table/nReads*100),2)
+        
+        
+        
       }
       
       
