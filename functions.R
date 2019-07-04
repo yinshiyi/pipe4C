@@ -1219,8 +1219,8 @@ Run.4Cpipeline <- function( VPinfo.file, FASTQ.F, OUTPUT.F, configuration){
                                   , normFactor=configuration$normFactor
                                   , wSize=wSize
                                   , nTop=nTop
-                                  , motifPosPerc=motifPosperc
-                                  , readlenPerc=readlenperc
+                                  , motifPosperc=motifPosperc
+                                  , readlenperc=readlenperc
     )
     
 
