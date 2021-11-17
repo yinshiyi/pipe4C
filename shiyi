@@ -1,0 +1,2 @@
+Rscript pipe4C.R –-vpFile [path to vpFile] --fqFolder [path to folder containing the FASTQ files] –-outFolder [path to output folder] --cores 15 -x --genomePlot
+
